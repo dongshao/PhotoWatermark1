@@ -37,6 +37,10 @@ Usage: PhotoWatermark [options] <image_path>
   -position <pos>        水印位置 (默认: bottom-right) 可选值: top-left, center, bottom-right
 ```
 
+### 详细使用示例
+
+请查看 [USAGE_EXAMPLES.md](USAGE_EXAMPLES.md) 获取更多使用示例和详细说明。
+
 ### 示例
 
 ```bash

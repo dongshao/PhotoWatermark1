@@ -1,11 +1,11 @@
 package com.photowatermark;
 
+import com.photowatermark.util.MemoryUtils;
 import net.coobird.thumbnailator.Thumbnails;
 import net.coobird.thumbnailator.geometry.Positions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.imageio.ImageIO;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.File;
@@ -50,7 +50,15 @@ public class WatermarkProcessor {
 
         logger.debug("开始处理图片水印: {}", originalImage.getPath());
 
+        // 检查内存是否充足
+        if (!MemoryUtils.isMemorySufficient(30 * 1024 * 1024)) { // 假设需要30MB
+            logger.warn("内存可能不足，当前处理: {}", originalImage.getPath());
+        }
+
         try {
+            // 记录处理前的内存使用情况
+            MemoryUtils.logMemoryUsage();
+
             // 使用Thumbnailator处理图片
             Thumbnails.Builder<File> builder = Thumbnails.of(originalImage);
 
@@ -70,6 +78,12 @@ public class WatermarkProcessor {
             builder.scale(1.0).toFile(outputFile);
 
             logger.debug("水印添加成功: {} -> {}", originalImage.getPath(), outputFile.getPath());
+
+            // 记录处理后的内存使用情况
+            MemoryUtils.logMemoryUsage();
+
+            // 建议垃圾回收
+            MemoryUtils.suggestGarbageCollection();
         } catch (Exception e) {
             logger.error("添加水印时发生错误: {}", e.getMessage(), e);
             throw new IOException("添加水印时发生错误: " + e.getMessage(), e);

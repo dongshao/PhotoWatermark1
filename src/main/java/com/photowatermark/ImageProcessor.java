@@ -2,6 +2,7 @@ package com.photowatermark;
 
 import com.photowatermark.exception.ExifReadException;
 import com.photowatermark.exception.FileOperationException;
+import com.photowatermark.util.MemoryUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -24,6 +25,9 @@ public class ImageProcessor {
         this.exifReader = new ExifReader();
         this.watermarkProcessor = new WatermarkProcessor();
         this.fileOutputManager = new FileOutputManager();
+
+        // 记录初始化时的内存使用情况
+        MemoryUtils.logMemoryUsage();
     }
 
     /**
@@ -51,6 +55,11 @@ public class ImageProcessor {
 
         logger.info("开始处理图片: {}", imagePath);
 
+        // 检查内存是否充足
+        if (!MemoryUtils.isMemorySufficient(50 * 1024 * 1024)) { // 假设需要50MB
+            logger.warn("内存可能不足，当前处理: {}", imagePath);
+        }
+
         // 1. 读取EXIF信息获取拍摄时间
         String captureDate = exifReader.readCaptureDateAsString(originalImageFile);
         if (captureDate == null || captureDate.isEmpty()) {
@@ -68,6 +77,9 @@ public class ImageProcessor {
         watermarkProcessor.addTextWatermark(originalImageFile, captureDate, fontSize, color, position, outputFile);
 
         logger.info("图片处理完成: {} -> {}", imagePath, outputFile.getPath());
+
+        // 处理完成后记录内存使用情况
+        MemoryUtils.logMemoryUsage();
     }
 
     /**
@@ -90,6 +102,9 @@ public class ImageProcessor {
 
         logger.info("开始批量处理 {} 个图片文件", imagePaths.size());
 
+        // 记录处理前的内存使用情况
+        MemoryUtils.logMemoryUsage();
+
         for (String imagePath : imagePaths) {
             try {
                 processImage(imagePath, fontSize, color, position, config);
@@ -98,11 +113,22 @@ public class ImageProcessor {
                 logger.error("处理图片失败: {}", imagePath, e);
                 results.add(new ProcessResult(imagePath, false, e.getMessage()));
             }
+
+            // 每处理10个文件建议一次垃圾回收
+            if (results.size() % 10 == 0) {
+                MemoryUtils.suggestGarbageCollection();
+            }
         }
 
         logger.info("批量处理完成，成功: {}，失败: {}",
             results.stream().filter(r -> r.isSuccess()).count(),
             results.stream().filter(r -> !r.isSuccess()).count());
+
+        // 记录处理后的内存使用情况
+        MemoryUtils.logMemoryUsage();
+
+        // 最后建议一次垃圾回收
+        MemoryUtils.suggestGarbageCollection();
 
         return results;
     }
