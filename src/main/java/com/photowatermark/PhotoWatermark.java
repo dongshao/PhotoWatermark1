@@ -4,6 +4,11 @@ import org.apache.commons.cli.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.File;
+import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Collectors;
+
 /**
  * 图片水印命令行程序主类
  * 能够自动读取图片的EXIF信息中的拍摄时间，并将其作为文本水印添加到图片上
@@ -61,6 +66,9 @@ public class PhotoWatermark {
         String color = getColor(cmd);
         String position = getPosition(cmd);
 
+        // 创建配置管理器
+        ConfigurationManager config = new ConfigurationManager(fontSize, color, position);
+
         // 输出参数信息（用于调试）
         logger.info("程序启动参数:");
         logger.info("  图片路径: {}", String.join(", ", imagePaths));
@@ -74,11 +82,57 @@ public class PhotoWatermark {
         System.out.println("字体颜色: " + color);
         System.out.println("水印位置: " + position);
 
-        // TODO: 实现核心功能逻辑
-        // 1. 读取图片文件
-        // 2. 提取EXIF信息中的拍摄时间
-        // 3. 添加水印到图片
-        // 4. 保存处理后的图片
+        // 处理图片
+        processImages(imagePaths, config);
+    }
+
+    /**
+     * 处理图片
+     * @param imagePaths 图片路径数组
+     * @param config 配置管理器
+     */
+    private void processImages(String[] imagePaths, ConfigurationManager config) {
+        ImageProcessor processor = new ImageProcessor();
+
+        // 将数组转换为列表
+        List<String> imagePathList = Arrays.asList(imagePaths);
+
+        // 过滤出存在的图片文件
+        List<String> existingImages = imagePathList.stream()
+                .filter(path -> new File(path).exists())
+                .collect(Collectors.toList());
+
+        if (existingImages.isEmpty()) {
+            System.err.println("错误: 没有找到任何存在的图片文件");
+            return;
+        }
+
+        System.out.println("找到 " + existingImages.size() + " 个图片文件");
+
+        // 批量处理图片
+        List<ImageProcessor.ProcessResult> results = processor.processImages(
+                existingImages,
+                config.getFontSize(),
+                config.getColor(),
+                config.getPosition(),
+                config);
+
+        // 输出处理结果
+        System.out.println("\n处理结果:");
+        for (ImageProcessor.ProcessResult result : results) {
+            if (result.isSuccess()) {
+                System.out.println("✓ " + result.getImagePath() + " - 处理成功");
+            } else {
+                System.err.println("✗ " + result.getImagePath() + " - 处理失败: " + result.getMessage());
+            }
+        }
+
+        long successCount = results.stream().filter(r -> r.isSuccess()).count();
+        long failureCount = results.size() - successCount;
+
+        System.out.println("\n总结:");
+        System.out.println("成功处理: " + successCount + " 个文件");
+        System.out.println("处理失败: " + failureCount + " 个文件");
     }
 
     /**
