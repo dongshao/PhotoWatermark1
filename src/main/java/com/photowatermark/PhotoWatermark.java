@@ -21,6 +21,11 @@ public class PhotoWatermark {
     private static final String DEFAULT_COLOR = "white";
     private static final String DEFAULT_POSITION = "bottom-right";
 
+    // 支持的图片扩展名
+    private static final List<String> SUPPORTED_EXTENSIONS = Arrays.asList(
+        ".jpg", ".jpeg", ".png", ".bmp", ".gif"
+    );
+
     // 命令行选项
     private static final String OPTION_FONT_SIZE = "fontSize";
     private static final String OPTION_COLOR = "color";
@@ -77,7 +82,6 @@ public class PhotoWatermark {
         logger.info("  水印位置: {}", position);
 
         System.out.println("图片水印程序启动...");
-        System.out.println("图片路径: " + String.join(", ", imagePaths));
         System.out.println("字体大小: " + fontSize);
         System.out.println("字体颜色: " + color);
         System.out.println("水印位置: " + position);
@@ -94,24 +98,19 @@ public class PhotoWatermark {
     private void processImages(String[] imagePaths, ConfigurationManager config) {
         ImageProcessor processor = new ImageProcessor();
 
-        // 将数组转换为列表
-        List<String> imagePathList = Arrays.asList(imagePaths);
+        // 解析和过滤图片路径
+        List<String> validImagePaths = parseAndFilterImagePaths(Arrays.asList(imagePaths));
 
-        // 过滤出存在的图片文件
-        List<String> existingImages = imagePathList.stream()
-                .filter(path -> new File(path).exists())
-                .collect(Collectors.toList());
-
-        if (existingImages.isEmpty()) {
-            System.err.println("错误: 没有找到任何存在的图片文件");
+        if (validImagePaths.isEmpty()) {
+            System.err.println("错误: 没有找到任何有效的图片文件");
             return;
         }
 
-        System.out.println("找到 " + existingImages.size() + " 个图片文件");
+        System.out.println("找到 " + validImagePaths.size() + " 个有效的图片文件");
 
         // 批量处理图片
         List<ImageProcessor.ProcessResult> results = processor.processImages(
-                existingImages,
+                validImagePaths,
                 config.getFontSize(),
                 config.getColor(),
                 config.getPosition(),
@@ -133,6 +132,54 @@ public class PhotoWatermark {
         System.out.println("\n总结:");
         System.out.println("成功处理: " + successCount + " 个文件");
         System.out.println("处理失败: " + failureCount + " 个文件");
+    }
+
+    /**
+     * 解析和过滤图片路径
+     * @param paths 路径列表
+     * @return 有效的图片路径列表
+     */
+    private List<String> parseAndFilterImagePaths(List<String> paths) {
+        return paths.stream()
+                .flatMap(path -> {
+                    File file = new File(path);
+                    if (file.isDirectory()) {
+                        // 如果是目录，返回目录下所有支持的图片文件
+                        File[] files = file.listFiles();
+                        if (files != null) {
+                            return Arrays.stream(files)
+                                    .filter(f -> isSupportedImageFile(f))
+                                    .map(File::getAbsolutePath);
+                        }
+                        return java.util.stream.Stream.empty();
+                    } else if (file.exists() && isSupportedImageFile(file)) {
+                        // 如果是支持的图片文件，直接返回
+                        return java.util.stream.Stream.of(path);
+                    } else {
+                        // 不支持的文件或不存在的文件
+                        if (!file.exists()) {
+                            System.err.println("警告: 文件不存在: " + path);
+                        } else if (!isSupportedImageFile(file)) {
+                            System.err.println("警告: 不支持的文件格式: " + path);
+                        }
+                        return java.util.stream.Stream.empty();
+                    }
+                })
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * 检查是否为支持的图片文件
+     * @param file 文件
+     * @return 是否为支持的图片文件
+     */
+    private boolean isSupportedImageFile(File file) {
+        if (file == null || !file.exists() || file.isDirectory()) {
+            return false;
+        }
+
+        String fileName = file.getName().toLowerCase();
+        return SUPPORTED_EXTENSIONS.stream().anyMatch(ext -> fileName.endsWith(ext));
     }
 
     /**
@@ -227,6 +274,13 @@ public class PhotoWatermark {
     private void printHelp() {
         Options options = createOptions();
         HelpFormatter formatter = new HelpFormatter();
-        formatter.printHelp("PhotoWatermark [options] <image_path>", options);
+        formatter.printHelp("PhotoWatermark [options] <image_path> [image_path2] ...\n\n" +
+                           "支持处理单个图片文件、多个图片文件或整个目录。\n" +
+                           "示例:\n" +
+                           "  PhotoWatermark /path/to/image.jpg\n" +
+                           "  PhotoWatermark /path/to/image1.jpg /path/to/image2.jpg\n" +
+                           "  PhotoWatermark /path/to/images/\n" +
+                           "  PhotoWatermark /path/to/images/*.jpg\n",
+                           options);
     }
 }
